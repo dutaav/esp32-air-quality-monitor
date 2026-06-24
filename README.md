@@ -1,6 +1,6 @@
 # Air Quality Monitoring
 
-An **air quality** monitoring system that runs entirely on the ESP32. The sensors read gas, temperature, and humidity, then the system computes an **AQI** and **predicts the next AQI value** using **linear regression** over **time-series features** — all processed on-device, no internet required.
+An **air quality** monitoring system that runs entirely on the ESP32. The sensors read gas, temperature, and humidity, then the system computes an **AQI** and **predicts the next AQI value** using **linear regression** over **time-series features**, all processed on-device, no internet required.
 
 The approach: a hand-rolled time-series pipeline (MQ-135 → moving average → AQI → delta/acceleration features) feeding a linear-regression model whose weights are trained offline and embedded into the firmware.
 
@@ -53,7 +53,7 @@ One cycle runs every **2 seconds** (`PERIOD_MS = 2000`), non-blocking.
 | **AI/ML** | Multivariate linear regression with 7 features. Trained offline on a laptop (least-squares / SVD), `W_*` coefficients embedded into the firmware | [model/train_model.py](model/train_model.py) |
 | **Hardware** | ESP32 + MQ-135 + DHT22 + OLED + 2 LEDs + buzzer | [Wiring](#wiring) |
 
-Extras: residual-based **anomaly detection** (large prediction errors in a row) and a **fire alarm** (temperature ≥ 50 °C). Optional **Blynk** dashboard for remote monitoring — the device still runs **fully offline** if WiFi/Blynk is unavailable.
+Extras: residual-based **anomaly detection** (large prediction errors in a row) and a **fire alarm** (temperature ≥ 50 °C). Optional **Blynk** dashboard for remote monitoring; the device still runs **fully offline** if WiFi/Blynk is unavailable.
 
 ---
 
@@ -95,7 +95,7 @@ Install via **Library Manager** in the Arduino IDE:
 - `Adafruit SSD1306`
 - `DHT sensor library` (Adafruit)
 - `Wire` (built-in, I²C)
-- `Blynk` (by Volodymyr Shymanskyy — for the optional dashboard)
+- `Blynk` (by Volodymyr Shymanskyy, for the optional dashboard)
 - `WiFi` (built-in with the ESP32 core)
 
 Board: **ESP32 Dev Module** (*esp32 by Espressif Systems* package).
@@ -161,7 +161,7 @@ python model/record_serial.py /dev/cu.usbserial-0001 600
 
 Records for 600 seconds (10 minutes) then **auto-stops**. Close the Arduino Serial Monitor first so the port isn't busy. Press `Ctrl-C` to stop early (data still gets cleaned). Output: `dataset/cleaned.csv` (captured and cleaned in one step, no intermediate file).
 
-> Tip: vary the air while recording — breathe on the sensor, bring smoke/perfume close, then let it recover — so the AQI swings up and down and the model learns the pattern.
+> Tip: vary the air while recording: breathe on the sensor, bring smoke/perfume close, then let it recover, so the AQI swings up and down and the model learns the pattern.
 
 ### 3. Train the model
 
@@ -213,7 +213,7 @@ The linear regression is trained with **least-squares via SVD** (`np.linalg.lsts
 
 ## Algorithm Details
 
-**Circular buffer.** Moving average of gas readings with a window of 10, updated in `O(1)`: subtract the old value, add the new one, advance the head — no re-looping.
+**Circular buffer.** Moving average of gas readings with a window of 10, updated in `O(1)`: subtract the old value, add the new one, advance the head, no re-looping.
 
 ```
 prediction = W_AQI·AQI + W_PREV1·prev1 + W_PREV2·prev2
@@ -228,7 +228,7 @@ The feature math in the firmware is **identical** to what `record_serial.py` bui
 
 **On-device accuracy.** A 30-sample error ring buffer → MAE → `accuracy = 100 − MAE/5`, shown directly on the OLED.
 
-**Complexity.** Acquisition & prediction are `O(1)` per cycle (fixed window), constant memory — safe for the ESP32's RAM.
+**Complexity.** Acquisition & prediction are `O(1)` per cycle (fixed window), constant memory, safe for the ESP32's RAM.
 
 ---
 
@@ -243,11 +243,11 @@ The feature math in the firmware is **identical** to what `record_serial.py` bui
 | **ANOMALY** | Large prediction error for 3 cycles | (running status) | Double beep |
 
 **Edge-case handling:**
-- **20-second warm-up** — wait for the MQ-135 heater to stabilize before starting
-- **DHT error / NaN** — reuse the last valid reading
-- **Buffer not full** — show fill progress, hold output
-- **Gas rail** (ADC ≤ 5 or ≥ 4090) — flag `gasERR`
-- **First-cycle delta spike** — seed `prev` values with the initial AQI
+- **20-second warm-up**: wait for the MQ-135 heater to stabilize before starting
+- **DHT error / NaN**: reuse the last valid reading
+- **Buffer not full**: show fill progress, hold output
+- **Gas rail** (ADC ≤ 5 or ≥ 4090): flag `gasERR`
+- **First-cycle delta spike**: seed `prev` values with the initial AQI
 
 ---
 
@@ -265,7 +265,7 @@ The firmware can stream its telemetry to a **Blynk IoT** dashboard for remote mo
 | `V1` | Predicted AQI | Integer | 0–500 |
 | `V2` | Temperature | Double | 0–60 °C |
 | `V3` | Humidity | Double | 0–100 % |
-| `V4` | Corrected gas | Double | — |
+| `V4` | Corrected gas | Double | - |
 | `V5` | Status | String | GOOD / MODERATE / BAD / FIRE! |
 | `V6` | Accuracy | Integer | 0–100 % |
 | `V7` | Trend | String | Up / Down / Stable |
@@ -288,4 +288,4 @@ The firmware can stream its telemetry to a **Blynk IoT** dashboard for remote mo
 
 ---
 
-*All core computation (algorithm + AI) runs entirely on the ESP32. The cloud is optional — Blynk only mirrors the results for remote viewing, and the device stays fully functional offline.*
+*All core computation (algorithm + AI) runs entirely on the ESP32. The cloud is optional; Blynk only mirrors the results for remote viewing, and the device stays fully functional offline.*

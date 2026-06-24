@@ -1,4 +1,4 @@
-# Local-only — not published
+# Local-only - not published
 .venv/
 .DS_Store
 AGENTS.md
