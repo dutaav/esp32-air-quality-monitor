@@ -1,4 +1,4 @@
-# Smart Air Quality — Edge AI + ESP32
+# Smart Air Quality
 
 An **air quality** monitoring system that runs entirely on the ESP32. The sensors read gas, temperature, and humidity, then the system computes an **AQI** and **predicts the next AQI value** using **linear regression** over **time-series features** — all processed on-device, no internet required.
 
