@@ -9,7 +9,6 @@ FEATURES = ["AQI", "AQI_prev1", "AQI_prev2",
             "delta_AQI", "delta2_AQI", "Temp", "Humidity"]
 TARGET = "PredictedAQI"
 
-# mapping to const names in esp.ino
 C_NAMES = ["W_AQI", "W_PREV1", "W_PREV2",
            "W_DELTA", "W_ACCEL", "W_TEMP", "W_HUM"]
 
