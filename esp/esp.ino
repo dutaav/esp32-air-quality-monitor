@@ -194,11 +194,11 @@ int predictAqi() {
 const char* airStatus() {
   if (fireAlarm)                 return "FIRE!";
   if (aqi <= THRESH_GOOD)        return "GOOD";
-  if (aqi <= THRESH_MOD)         return "MOD";
+  if (aqi <= THRESH_MOD)         return "MODERATE";
   return "BAD";
 }
 
-// 2 LEDs: GOOD=green, MOD=green+red (fake yellow)+short beep, BAD=red+continuous
+// 2 LEDs: GOOD=green, MODERATE=green+red (fake yellow)+short beep, BAD=red+continuous
 void controlOutputs() {
   if (fireAlarm)               { setLed(false, true); buzzerMode = BUZ_FIRE; return; }
   if (aqi <= THRESH_GOOD)      { setLed(true,  false); buzzerMode = BUZ_OFF; }

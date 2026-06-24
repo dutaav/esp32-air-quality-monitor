@@ -237,7 +237,7 @@ The feature math in the firmware is **identical** to what `record_serial.py` bui
 | Status | Condition | LED | Buzzer |
 |---|---|---|---|
 | **GOOD** | AQI ≤ 100 | Green | Off |
-| **MOD** | 100 < AQI ≤ 300 | Green + Red | Short beep |
+| **MODERATE** | 100 < AQI ≤ 300 | Green + Red | Short beep |
 | **BAD** | AQI > 300 | Red | Continuous |
 | **FIRE!** | Temp ≥ 50 °C | Red | Fast beeps |
 | **ANOMALY** | Large prediction error for 3 cycles | (running status) | Double beep |
@@ -266,7 +266,7 @@ The firmware can stream its telemetry to a **Blynk IoT** dashboard for remote mo
 | `V2` | Temperature | Double | 0–60 °C |
 | `V3` | Humidity | Double | 0–100 % |
 | `V4` | Corrected gas | Double | — |
-| `V5` | Status | String | GOOD / MOD / BAD / FIRE! |
+| `V5` | Status | String | GOOD / MODERATE / BAD / FIRE! |
 | `V6` | Accuracy | Integer | 0–100 % |
 | `V7` | Trend | String | Up / Down / Stable |
 
