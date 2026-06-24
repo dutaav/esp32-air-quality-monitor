@@ -102,7 +102,6 @@ Board: **ESP32 Dev Module** (*esp32 by Espressif Systems* package).
 ## Folder Structure
 
 ```
-.
 ├── esp.ino              # ESP32 firmware (acquisition, algorithm, regression, output)
 ├── dataset/
 │   └── cleaned.csv      # Cleaned data + time-series features (ready to train)
