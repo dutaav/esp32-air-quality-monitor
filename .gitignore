@@ -1,0 +1,10 @@
+# Local-only — not published
+.venv/
+.DS_Store
+AGENTS.md
+ASSIGNMENT.md
+
+# Python cache / generated artifacts
+__pycache__/
+*.pyc
+model/model_analysis.png
