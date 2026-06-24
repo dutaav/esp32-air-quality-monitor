@@ -1,4 +1,4 @@
-// Smart Air Quality - ESP32
+// Air Quality Monitoring - ESP32
 // Time-series (circular buffer + delta/acceleration) + linear regression.
 // Weights trained offline (model/latih_model.py), embedded here.
 
@@ -322,7 +322,8 @@ void setup() {
 
   oled.clearDisplay(); oled.setTextColor(SSD1306_WHITE);
   oled.setTextSize(1); oled.setCursor(0, 0);
-  oled.println("Smart Air Quality");
+  oled.println("Air Quality");
+  oled.println("Monitoring");
   oled.println("ESP32 + Linear");
   oled.println("Regression");
   oled.display();
