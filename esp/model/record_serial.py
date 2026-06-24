@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import io
 import os
 import sys
 import time
@@ -13,7 +14,6 @@ DEFAULT_SECONDS = 600.0   # 10 minutes, then auto-stop
 
 DIR_HERE     = os.path.dirname(os.path.abspath(__file__))
 DIR_DATA     = os.path.join(DIR_HERE, "..", "dataset")
-PATH_RAW     = os.path.join(DIR_DATA, "raw.csv")
 PATH_CLEANED = os.path.join(DIR_DATA, "cleaned.csv")
 
 
@@ -28,40 +28,36 @@ def find_port(arg: str | None) -> str:
     sys.exit("Port not found. Pass it manually: python record_serial.py /dev/cu.xxxx")
 
 
-def record(port: str, seconds: float, path_raw: str) -> int:
-    """Stream CSV lines from serial into path_raw. Returns the row count."""
+def record(port: str, seconds: float) -> list[str]:
+    """Stream CSV lines from serial into memory. Returns the captured data rows."""
     ser = serial.Serial(port, BAUD, timeout=1)
     ser.reset_input_buffer()                       # drop stale OS buffer backlog
 
-    print(f"Recording {port} @ {BAUD} -> {path_raw}  (auto-stop {seconds:.0f}s)")
+    print(f"Recording {port} @ {BAUD}  (auto-stop {seconds:.0f}s)")
     print("Vary the air: breathe on the sensor / bring smoke or perfume, then let it recover.\n")
 
     t0 = time.time()
-    n = 0
-    with open(path_raw, "w") as f:
-        f.write(HEADER + "\n")
-        try:
-            while time.time() - t0 < seconds:
-                line = ser.readline().decode("utf-8", "ignore").strip()
-                if not line:
-                    continue
-                if line.startswith("#"):           # baseline comment -> show only
-                    print("  " + line)
-                    continue
-                if line.startswith("Time"):        # stream header -> already written
-                    continue
-                if not line[0].isdigit():          # skip partial/other text
-                    continue
-                f.write(line + "\n")
-                f.flush()
-                n += 1
-                left = seconds - (time.time() - t0)
-                print(f"[left {left:5.0f}s] ({n:4d}) {line}")
-        except KeyboardInterrupt:
-            print("\nStopped early (Ctrl-C).")
-        finally:
-            ser.close()
-    return n
+    rows: list[str] = []
+    try:
+        while time.time() - t0 < seconds:
+            line = ser.readline().decode("utf-8", "ignore").strip()
+            if not line:
+                continue
+            if line.startswith("#"):               # baseline comment -> show only
+                print("  " + line)
+                continue
+            if line.startswith("Time"):            # stream header -> skip
+                continue
+            if not line[0].isdigit():              # skip partial/other text
+                continue
+            rows.append(line)
+            left = seconds - (time.time() - t0)
+            print(f"[left {left:5.0f}s] ({len(rows):4d}) {line}")
+    except KeyboardInterrupt:
+        print("\nStopped early (Ctrl-C).")
+    finally:
+        ser.close()
+    return rows
 
 
 def drop_outliers_iqr(df: pd.DataFrame, column: str, k: float = 1.5) -> pd.DataFrame:
@@ -71,9 +67,9 @@ def drop_outliers_iqr(df: pd.DataFrame, column: str, k: float = 1.5) -> pd.DataF
     return df[(df[column] >= lo) & (df[column] <= hi)]
 
 
-def clean(path_raw: str, path_cleaned: str) -> pd.DataFrame:
-    """Clean raw CSV and add time-series features. Returns the cleaned frame."""
-    df = pd.read_csv(path_raw)
+def clean(rows: list[str], path_cleaned: str) -> pd.DataFrame:
+    """Clean captured CSV rows and add time-series features. Returns the cleaned frame."""
+    df = pd.read_csv(io.StringIO("\n".join([HEADER] + rows)))
     if not set(COLUMNS).issubset(df.columns):
         raise ValueError(f"Missing columns. Need: {COLUMNS}")
 
@@ -114,14 +110,14 @@ def main() -> None:
             port = a
     port = find_port(port)
 
-    n = record(port, seconds, PATH_RAW)
-    if n < 5:
-        sys.exit(f"\nOnly {n} rows recorded, too few to train. "
+    rows = record(port, seconds)
+    if len(rows) < 5:
+        sys.exit(f"\nOnly {len(rows)} rows recorded, too few to train. "
                  "Make sure the ESP32 streams CSV, then try again for longer.")
 
-    print(f"\nRecording done: {n} raw rows -> {PATH_RAW}")
+    print(f"\nRecording done: {len(rows)} rows captured")
     print("Cleaning + building time-series features...")
-    df = clean(PATH_RAW, PATH_CLEANED)
+    df = clean(rows, PATH_CLEANED)
     print(f"Cleaned: {len(df)} rows -> {PATH_CLEANED}")
     print("\nNow train: python train_model.py")
 
