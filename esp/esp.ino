@@ -7,6 +7,28 @@
 #include <Adafruit_SSD1306.h>
 #include <DHT.h>
 
+// ---- Blynk IoT (template IDs MUST be defined before the Blynk header) ----
+// BLYNK_PRINT intentionally left undefined: keeps Serial clean for the CSV logger.
+#define BLYNK_TEMPLATE_ID   "TMPL6C8L3fR8n"
+#define BLYNK_TEMPLATE_NAME "Air Quality"
+#define BLYNK_AUTH_TOKEN    "LY2hbYvSKWOuYESDebySWZsRt6OTir1-"
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+
+// WiFi credentials. Device still runs fully offline if these are wrong/empty.
+const char* WIFI_SSID = "Glu";
+const char* WIFI_PASS = "G11111111";
+
+// Blynk virtual datastream pins
+#define VP_AQI    V0
+#define VP_PRED   V1
+#define VP_TEMP   V2
+#define VP_HUM    V3
+#define VP_GAS    V4
+#define VP_STATUS V5
+#define VP_ACC    V6
+#define VP_TREND  V7
+
 #define PIN_GAS_AOUT 35
 #define PIN_GAS_DOUT 34
 #define PIN_DHT      4
@@ -103,6 +125,11 @@ enum BuzzerMode { BUZ_OFF, BUZ_SHORT, BUZ_CONT, BUZ_FIRE, BUZ_ANOMALY };
 BuzzerMode    buzzerMode = BUZ_OFF;
 unsigned long tBuzzer = 0;
 bool          buzzerToggle = false;
+
+// Blynk: non-blocking reconnect timer + alert edge tracking
+const unsigned long BLYNK_RETRY_MS = 5000;
+unsigned long tBlynkRetry = 0;
+bool prevFire = false, prevAnomaly = false;
 
 void setLed(bool green, bool red) {
   digitalWrite(PIN_GREEN, green);
@@ -215,6 +242,7 @@ void showDisplay(Phase phase, int secsLeft = 0) {
 
   // PH_NORMAL
   oled.print("Air Quality");
+  if (Blynk.connected()) oled.fillCircle(124, 3, 3, SSD1306_WHITE);  // online dot
   oled.drawLine(0, 10, 128, 10, SSD1306_WHITE);
   oled.setTextSize(2); oled.setCursor(0, 14); oled.print(aqi);
   oled.setTextSize(1); oled.setCursor(72, 14); oled.print(airStatus());
@@ -240,6 +268,50 @@ void printCsv() {
   Serial.print(correctedGas, 1);  Serial.print(',');
   Serial.print(aqi);              Serial.print(',');
   Serial.println(predicted);
+}
+
+// --- Blynk: non-blocking connect + telemetry push (edge stays usable offline) ---
+void blynkSetup() {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  Blynk.config(BLYNK_AUTH_TOKEN);   // non-blocking; blynkService() drives the rest
+}
+
+void blynkService() {               // called every loop(); never blocks the cycle
+  if (WiFi.status() != WL_CONNECTED) {
+    if (millis() - tBlynkRetry >= BLYNK_RETRY_MS) {
+      tBlynkRetry = millis();
+      WiFi.begin(WIFI_SSID, WIFI_PASS);
+    }
+    return;
+  }
+  if (!Blynk.connected()) {
+    if (millis() - tBlynkRetry >= BLYNK_RETRY_MS) {
+      tBlynkRetry = millis();
+      Blynk.connect(1500);          // short timeout so a dead server can't hang us
+    }
+    return;
+  }
+  Blynk.run();
+}
+
+void pushBlynk() {                  // datastream values + edge-triggered alerts
+  bool fireEdge    = fireAlarm && !prevFire;
+  bool anomalyEdge = anomaly   && !prevAnomaly;
+  prevFire    = fireAlarm;
+  prevAnomaly = anomaly;
+
+  if (!Blynk.connected()) return;
+  Blynk.virtualWrite(VP_AQI,    aqi);
+  Blynk.virtualWrite(VP_PRED,   predicted);
+  Blynk.virtualWrite(VP_TEMP,   temp);
+  Blynk.virtualWrite(VP_HUM,    humidity);
+  Blynk.virtualWrite(VP_GAS,    correctedGas);
+  Blynk.virtualWrite(VP_STATUS, airStatus());
+  Blynk.virtualWrite(VP_ACC,    accuracy);
+  Blynk.virtualWrite(VP_TREND,  trend);
+  if (fireEdge)    Blynk.logEvent("fire_alarm");
+  if (anomalyEdge) Blynk.logEvent("anomaly");
 }
 
 void runCycle() {
@@ -296,6 +368,7 @@ void runCycle() {
   controlOutputs();
   showDisplay(fireAlarm ? PH_FIRE : PH_NORMAL);
   printCsv();
+  pushBlynk();
 
   aqiPrev2 = aqiPrev1;
   aqiPrev1 = aqi;
@@ -329,12 +402,15 @@ void setup() {
   oled.display();
   delay(1200);
 
+  blynkSetup();   // starts connecting during the MQ-135 warm-up window
+
   tBoot  = millis();
   tCycle = millis();
 }
 
 void loop() {
   serviceBuzzer();
+  blynkService();
   if (millis() - tCycle >= PERIOD_MS) {
     tCycle += PERIOD_MS;
     runCycle();

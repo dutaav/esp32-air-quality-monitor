@@ -19,6 +19,7 @@ The approach: a hand-rolled time-series pipeline (MQ-135 → moving average → 
 - [Model & Evaluation](#model--evaluation)
 - [Algorithm Details](#algorithm-details)
 - [Output & Status](#output--status)
+- [Blynk Dashboard](#blynk-dashboard-optional)
 
 ---
 
@@ -37,7 +38,7 @@ The approach: a hand-rolled time-series pipeline (MQ-135 → moving average → 
 [ AI MODEL ]    linear regression (7 features) -> predict next AQI
      |
      v
-[ OUTPUT ]      OLED + 2 LEDs + buzzer + Serial CSV
+[ OUTPUT ]      OLED + 2 LEDs + buzzer + Serial CSV + Blynk (optional)
 ```
 
 One cycle runs every **2 seconds** (`PERIOD_MS = 2000`), non-blocking.
@@ -52,7 +53,7 @@ One cycle runs every **2 seconds** (`PERIOD_MS = 2000`), non-blocking.
 | **AI/ML** | Multivariate linear regression with 7 features. Trained offline on a laptop (least-squares / SVD), `W_*` coefficients embedded into the firmware | [model/train_model.py](model/train_model.py) |
 | **Hardware** | ESP32 + MQ-135 + DHT22 + OLED + 2 LEDs + buzzer | [Wiring](#wiring) |
 
-Extras: residual-based **anomaly detection** (large prediction errors in a row) and a **fire alarm** (temperature ≥ 50 °C).
+Extras: residual-based **anomaly detection** (large prediction errors in a row) and a **fire alarm** (temperature ≥ 50 °C). Optional **Blynk** dashboard for remote monitoring — the device still runs **fully offline** if WiFi/Blynk is unavailable.
 
 ---
 
@@ -94,6 +95,8 @@ Install via **Library Manager** in the Arduino IDE:
 - `Adafruit SSD1306`
 - `DHT sensor library` (Adafruit)
 - `Wire` (built-in, I²C)
+- `Blynk` (by Volodymyr Shymanskyy — for the optional dashboard)
+- `WiFi` (built-in with the ESP32 core)
 
 Board: **ESP32 Dev Module** (*esp32 by Espressif Systems* package).
 
@@ -248,4 +251,41 @@ The feature math in the firmware is **identical** to what `record_serial.py` bui
 
 ---
 
-*No WiFi/cloud — all computation (algorithm + AI) runs entirely on the ESP32.*
+## Blynk Dashboard (optional)
+
+The firmware can stream its telemetry to a **Blynk IoT** dashboard for remote monitoring. This is **purely additive**: all the AI/algorithm work still runs on-device, and the system keeps working even if WiFi or the Blynk server is down (non-blocking connect with periodic retry).
+
+> A small filled **dot appears at the top-right of the OLED** when Blynk is connected.
+
+**Virtual datastreams** (set these up in the Blynk console):
+
+| Pin | Datastream | Type | Range |
+|---|---|---|---|
+| `V0` | AQI | Integer | 0–500 |
+| `V1` | Predicted AQI | Integer | 0–500 |
+| `V2` | Temperature | Double | 0–60 °C |
+| `V3` | Humidity | Double | 0–100 % |
+| `V4` | Corrected gas | Double | — |
+| `V5` | Status | String | GOOD / MOD / BAD / FIRE! |
+| `V6` | Accuracy | Integer | 0–100 % |
+| `V7` | Trend | String | Up / Down / Stable |
+
+**Events** (Blynk console → *Events*, used for push notifications):
+
+| Event code | Trigger |
+|---|---|
+| `fire_alarm` | Temperature ≥ 50 °C (rising edge) |
+| `anomaly` | Large prediction error for 3 cycles (rising edge) |
+
+**Setup:**
+
+1. Install the **`Blynk`** library (Library Manager).
+2. In the [Blynk console](https://blynk.cloud), create a template, add the datastreams/events above, then grab the device's `BLYNK_TEMPLATE_ID`, `BLYNK_TEMPLATE_NAME`, and `BLYNK_AUTH_TOKEN`.
+3. Paste those three values + your `WIFI_SSID` / `WIFI_PASS` into the Blynk block near the top of [esp.ino](esp.ino).
+4. Upload. The device connects during the warm-up window; leave the fields as-is to run offline-only.
+
+> Serial debug from Blynk is intentionally **disabled** (`BLYNK_PRINT` undefined) so the CSV stream stays clean for [record_serial.py](model/record_serial.py).
+
+---
+
+*All core computation (algorithm + AI) runs entirely on the ESP32. The cloud is optional — Blynk only mirrors the results for remote viewing, and the device stays fully functional offline.*
