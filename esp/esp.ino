@@ -35,6 +35,7 @@ const char* WIFI_PASS = "G11111111";
 #define PIN_GREEN    12
 #define PIN_RED      13
 #define PIN_BUZZER   14
+#define PIN_BOOT     0
 
 #define OLED_W    128
 #define OLED_H    64
@@ -126,6 +127,13 @@ BuzzerMode    buzzerMode = BUZ_OFF;
 unsigned long tBuzzer = 0;
 bool          buzzerToggle = false;
 
+// Boot button mute
+bool          buzzerMuted = false;
+BuzzerMode    mutedAtMode = BUZ_OFF;
+bool          bootBtnPrev = HIGH;
+unsigned long tDebounce   = 0;
+const unsigned long DEBOUNCE_MS = 200;
+
 // Blynk: non-blocking reconnect timer + alert edge tracking
 const unsigned long BLYNK_RETRY_MS = 5000;
 unsigned long tBlynkRetry = 0;
@@ -137,6 +145,7 @@ void setLed(bool green, bool red) {
 }
 
 void serviceBuzzer() {
+  if (buzzerMuted) { digitalWrite(PIN_BUZZER, LOW); return; }
   switch (buzzerMode) {
     case BUZ_OFF:   digitalWrite(PIN_BUZZER, LOW);  break;
     case BUZ_CONT:  digitalWrite(PIN_BUZZER, HIGH); break;
@@ -198,6 +207,16 @@ const char* airStatus() {
   return "BAD";
 }
 
+void checkBootButton() {
+  bool state = digitalRead(PIN_BOOT);
+  if (bootBtnPrev == HIGH && state == LOW && millis() - tDebounce >= DEBOUNCE_MS) {
+    tDebounce = millis();
+    buzzerMuted = true;
+    mutedAtMode = buzzerMode;
+  }
+  bootBtnPrev = state;
+}
+
 // 2 LEDs: GOOD=green, MODERATE=green+red (fake yellow)+short beep, BAD=red+continuous
 void controlOutputs() {
   if (fireAlarm)               { setLed(false, true); buzzerMode = BUZ_FIRE; return; }
@@ -205,6 +224,8 @@ void controlOutputs() {
   else if (aqi <= THRESH_MOD)  { setLed(true,  true);  buzzerMode = BUZ_SHORT; tBuzzer = millis(); }
   else                         { setLed(false, true);  buzzerMode = BUZ_CONT; }
   if (anomaly && buzzerMode < BUZ_CONT) { buzzerMode = BUZ_ANOMALY; tBuzzer = millis(); }
+  // auto-unmute on event change
+  if (buzzerMuted && buzzerMode != mutedAtMode) buzzerMuted = false;
 }
 
 // --- OLED display: single function, phase-driven ---
@@ -378,6 +399,7 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Time,Temp,Humidity,RawGas,CorrectedGas,AQI,PredictedAQI");
 
+  pinMode(PIN_BOOT,     INPUT_PULLUP);
   pinMode(PIN_GAS_DOUT, INPUT);
   pinMode(PIN_GREEN,    OUTPUT);
   pinMode(PIN_RED,      OUTPUT);
@@ -390,18 +412,6 @@ void setup() {
     while (true) delay(1000);
   }
 
-  setLed(true, true); digitalWrite(PIN_BUZZER, HIGH); delay(500);
-  setLed(false, false); digitalWrite(PIN_BUZZER, LOW);
-
-  oled.clearDisplay(); oled.setTextColor(SSD1306_WHITE);
-  oled.setTextSize(1); oled.setCursor(0, 0);
-  oled.println("Air Quality");
-  oled.println("Monitoring");
-  oled.println("ESP32 + Linear");
-  oled.println("Regression");
-  oled.display();
-  delay(1200);
-
   blynkSetup();   // starts connecting during the MQ-135 warm-up window
 
   tBoot  = millis();
@@ -409,6 +419,7 @@ void setup() {
 }
 
 void loop() {
+  checkBootButton();
   serviceBuzzer();
   blynkService();
   if (millis() - tCycle >= PERIOD_MS) {
