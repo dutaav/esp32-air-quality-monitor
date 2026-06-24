@@ -217,11 +217,11 @@ void checkBootButton() {
   bootBtnPrev = state;
 }
 
-// 2 LEDs: GOOD=green, MODERATE=green+red (fake yellow)+short beep, BAD=red+continuous
+// 2 LEDs: GOOD=green, MODERATE=green+red (fake yellow), BAD=red+continuous
 void controlOutputs() {
   if (fireAlarm)               { setLed(false, true); buzzerMode = BUZ_FIRE; return; }
   if (aqi <= THRESH_GOOD)      { setLed(true,  false); buzzerMode = BUZ_OFF; }
-  else if (aqi <= THRESH_MOD)  { setLed(true,  true);  buzzerMode = BUZ_SHORT; tBuzzer = millis(); }
+  else if (aqi <= THRESH_MOD)  { setLed(true,  true);  buzzerMode = BUZ_OFF; }
   else                         { setLed(false, true);  buzzerMode = BUZ_CONT; }
   if (anomaly && buzzerMode < BUZ_CONT) { buzzerMode = BUZ_ANOMALY; tBuzzer = millis(); }
   // auto-unmute on event change
